@@ -15,7 +15,7 @@
 		A81707A226AAD95E006A958E /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A81707A026AAD95E006A958E /* LaunchScreen.storyboard */; };
 		A81707AD26AAD95E006A958E /* HelloTriangleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A81707AC26AAD95E006A958E /* HelloTriangleTests.swift */; };
 		A81707B826AAD95E006A958E /* HelloTriangleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A81707B726AAD95E006A958E /* HelloTriangleUITests.swift */; };
-		A81707C626AAD96C006A958E /* GLView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A81707C526AAD96C006A958E /* GLView.swift */; };
+		A81707C826AADC10006A958E /* GLView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A81707C726AADC10006A958E /* GLView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,7 +50,7 @@
 		A81707B326AAD95E006A958E /* HelloTriangleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HelloTriangleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A81707B726AAD95E006A958E /* HelloTriangleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelloTriangleUITests.swift; sourceTree = "<group>"; };
 		A81707B926AAD95E006A958E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A81707C526AAD96C006A958E /* GLView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = GLView.swift; path = ../../Triangle/Traingle/GLView.swift; sourceTree = "<group>"; };
+		A81707C726AADC10006A958E /* GLView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GLView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,7 +104,7 @@
 				A817079526AAD95B006A958E /* AppDelegate.swift */,
 				A817079726AAD95B006A958E /* SceneDelegate.swift */,
 				A817079926AAD95B006A958E /* ViewController.swift */,
-				A81707C526AAD96C006A958E /* GLView.swift */,
+				A81707C726AADC10006A958E /* GLView.swift */,
 				A817079B26AAD95B006A958E /* Main.storyboard */,
 				A817079E26AAD95E006A958E /* Assets.xcassets */,
 				A81707A026AAD95E006A958E /* LaunchScreen.storyboard */,
@@ -262,8 +262,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A817079A26AAD95B006A958E /* ViewController.swift in Sources */,
-				A81707C626AAD96C006A958E /* GLView.swift in Sources */,
 				A817079626AAD95B006A958E /* AppDelegate.swift in Sources */,
+				A81707C826AADC10006A958E /* GLView.swift in Sources */,
 				A817079826AAD95B006A958E /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
