@@ -12,6 +12,10 @@ struct CustomVertex {
     var color: [Float]
 }
 
+struct ShaderCompileError:Error {
+    let compileLog:String
+}
+
 class GLView: UIView {
 
     var eaglLayer: CAEAGLLayer {
@@ -23,6 +27,8 @@ class GLView: UIView {
     }()
     var frameBuffer: GLuint = 0
     var renderBuffer: GLuint = 1
+    
+    var glViewAttributes = [Int32]()
     
     override class var layerClass: AnyClass {
         return CAEAGLLayer.self
@@ -37,11 +43,22 @@ class GLView: UIView {
         EAGLContext.setCurrent(context)
         setupRenderBuffer()
         setupFrameBuffer()
+        setupVertexBuffer()
+        attachShader()
     }
     
     func render() {
-        glClearColor(0, 0, 1, 1)
-        glClear(GLbitfield(GL_COLOR_BUFFER_BIT))
+        glClearColor(0, 0, 0, 1)  // 设置画笔颜色
+        glClear(GLbitfield(GL_COLOR_BUFFER_BIT))  // 清空viewport
+        
+        glViewport(0, 0, GLsizei(self.frame.size.width), GLsizei(self.frame.size.height))
+        let position = glViewAttributes[0]
+        let colors = glViewAttributes[0]
+        let inputByteSize = Int(self.frame.size.width * self.frame.size.height * 4)
+        let data = UnsafeMutablePointer<UInt8>.allocate(capacity:inputByteSize)
+        glVertexAttribPointer(GLuint(position), GLint(4), GLenum(GL_FLOAT), GLboolean(GL_FALSE), (GLint(32)), UnsafeRawPointer(bitPattern: 0))
+//        glVertexAttribPointer(GLuint(colors), GLint(4), GLenum(GL_FLOAT), GLboolean(GL_FALSE), (GLint(16) - 1) * 4, data)
+        glDrawArrays(GLenum(GL_TRIANGLES), 0, 3)
         
         context.presentRenderbuffer(Int(GL_RENDERBUFFER))
     }
@@ -54,12 +71,12 @@ class GLView: UIView {
         
         glGenFramebuffers(1, &frameBuffer)
         glBindFramebuffer(GLenum(GL_FRAMEBUFFER), frameBuffer)
-        glFramebufferRenderbuffer(GLenum(GL_FRAMEBUFFER), GLenum(GL_COLOR_ATTACHMENT0), GLenum(GL_RENDERBUFFER), renderBuffer)
+        glFramebufferRenderbuffer(GLenum(GL_FRAMEBUFFER), GLenum(GL_COLOR_ATTACHMENT0), GLenum(GL_RENDERBUFFER), renderBuffer) // 将渲染缓冲对象附加到帧缓冲的深度和模板附件上
     }
     
     func setupRenderBuffer() {
-        glGenRenderbuffers(1, &renderBuffer)
-        glBindRenderbuffer(GLenum(GL_RENDERBUFFER), renderBuffer)
+        glGenRenderbuffers(1, &renderBuffer) // 1 是个数，生成一个renderBuffer, 生成之后产生一个 ID 赋值给 renderBuffer
+        glBindRenderbuffer(GLenum(GL_RENDERBUFFER), renderBuffer) // 绑定
         context.renderbufferStorage(Int(GL_RENDERBUFFER), from: eaglLayer)
     }
     
@@ -97,16 +114,77 @@ class GLView: UIView {
         return result
     }
     
-//    func compileShader(_ shaderName: String, for type: GLenum) -> GLuint {
-//        do {
-//            if let shaderPath = Bundle.main.path(forResource: shaderName, ofType: nil) {
-//                let shaderString = try String(contentsOfFile: shaderPath, encoding: .utf8)
-//
-//            }
-//        } catch let error {
-//            print("error: \(error)")
-//        }
-//    }
+    func compileShader(_ shaderName: String, for type: GLenum) -> GLuint {
+        let shaderHandle: GLuint = glCreateShader(type)
+        do {
+            if let shaderPath = Bundle.main.path(forResource: shaderName, ofType: nil) {
+                let shaderString = try String(contentsOfFile: shaderPath, encoding: .utf8)
+                let shaderUTF8 = shaderString.cString(using: .utf8)!
+                let shaderUTF8GLChar = UnsafePointer<GLchar>(shaderUTF8)
+                var tempString:UnsafePointer<GLchar>? = shaderUTF8GLChar
+                var shaderStringLength = GLint(shaderString.count)
+                
+                glShaderSource(shaderHandle, 1, &tempString, &shaderStringLength)
+                glCompileShader(shaderHandle)
+                
+                var compileStatus:GLint = 1
+                glGetShaderiv(shaderHandle, GLenum(GL_COMPILE_STATUS), &compileStatus)
+                if (compileStatus != 1) {
+                    var logLength:GLint = 0
+                    glGetShaderiv(shaderHandle, GLenum(GL_INFO_LOG_LENGTH), &logLength)
+                    if (logLength > 0) {
+                        var compileLog = [CChar](repeating:0, count:Int(logLength))
+                        
+                        glGetShaderInfoLog(shaderHandle, logLength, &logLength, &compileLog)
+                        print("Compile log: \(String(cString:compileLog))")
+                        // let compileLogString = String(bytes:compileLog.map{UInt8($0)}, encoding:NSASCIIStringEncoding)
+                    }
+                }
+                
+                return shaderHandle
+            }
+        } catch let error {
+            print("error: \(error)")
+        }
+        return shaderHandle
+    }
+    
+    func attachShader() {
+        let program = glCreateProgram()
+        
+        let vetexShader = compileShader("vertex.vsh", for: GLenum(GL_VERTEX_SHADER))
+        let fragmentShader = compileShader("fragment.fsh", for: GLenum(GL_FRAGMENT_SHADER))
+        
+        glAttachShader(program, vetexShader)
+        glAttachShader(program, fragmentShader)
+        
+        try! link(program: program)
+    }
+    
+    func link(program: GLuint) throws {
+        glLinkProgram(program)
+        
+        var linkStatus:GLint = 0
+        glGetProgramiv(program, GLenum(GL_LINK_STATUS), &linkStatus)
+        if (linkStatus == 0) {
+            var logLength:GLint = 0
+            glGetProgramiv(program, GLenum(GL_INFO_LOG_LENGTH), &logLength)
+            if (logLength > 0) {
+                var compileLog = [CChar](repeating:0, count:Int(logLength))
+                
+                glGetProgramInfoLog(program, logLength, &logLength, &compileLog)
+                print("Link log: \(String(cString:compileLog))")
+            }
+            
+            throw ShaderCompileError(compileLog: "Link error")
+        }
+        
+        glViewAttributes.append(glGetAttribLocation(program, "position"))
+        glViewAttributes.append(glGetAttribLocation(program, "color"))
+        
+        glEnableVertexAttribArray(GLuint(glViewAttributes[0]))
+        glEnableVertexAttribArray(GLuint(glViewAttributes[1]))
+    }
     
     override func didMoveToWindow() {
         super.didMoveToWindow()
