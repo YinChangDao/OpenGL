@@ -52,12 +52,16 @@ class GLView: UIView {
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT))  // 清空viewport
         
         glViewport(0, 0, GLsizei(self.frame.size.width), GLsizei(self.frame.size.height))
+        
         let position = glViewAttributes[0]
-        let colors = glViewAttributes[0]
-        let inputByteSize = Int(self.frame.size.width * self.frame.size.height * 4)
-        let data = UnsafeMutablePointer<UInt8>.allocate(capacity:inputByteSize)
-        glVertexAttribPointer(GLuint(position), GLint(4), GLenum(GL_FLOAT), GLboolean(GL_FALSE), (GLint(32)), UnsafeRawPointer(bitPattern: 0))
-//        glVertexAttribPointer(GLuint(colors), GLint(4), GLenum(GL_FLOAT), GLboolean(GL_FALSE), (GLint(16) - 1) * 4, data)
+        let colors = glViewAttributes[1]
+//        let inputByteSize = Int(self.frame.size.width * self.frame.size.height * 4)
+//        let data = UnsafeMutablePointer<UInt8>.allocate(capacity:inputByteSize)
+        
+        glVertexAttribPointer(GLuint(position), GLint(4), GLenum(GL_FLOAT), GLboolean(GL_FALSE), GLsizei(MemoryLayout<GLfloat>.size*8), UnsafeRawPointer(bitPattern:0))
+        
+        glVertexAttribPointer(GLuint(colors), GLint(4), GLenum(GL_FLOAT), GLboolean(GL_FALSE), GLsizei(MemoryLayout<GLfloat>.size*8), UnsafeRawPointer(bitPattern: MemoryLayout<GLfloat>.size*4))
+                              
         glDrawArrays(GLenum(GL_TRIANGLES), 0, 3)
         
         context.presentRenderbuffer(Int(GL_RENDERBUFFER))
@@ -81,14 +85,17 @@ class GLView: UIView {
     }
     
     func setupVertexBuffer() {
-        let vertices = [CustomVertex(position: [-1.0, 1.0, 0, 1], color: [1, 0, 0, 1]),
-                        CustomVertex(position: [-1.0, -1.0, 0, 1], color: [0, 1, 0, 1]),
-                        CustomVertex(position: [1.0, -1.0, 0, 1], color: [0, 0, 1, 1])]
+        let vertexs:[GLfloat]  = [
+            0.5, -0.5, 0.0, 1.0,    1.0, 0.0, 0.0, 1.0,
+            -0.5, 0.5, 0.0, 1.0,    0.0, 1.0, 0.0, 1.0,
+            -0.5, -0.5, 0.0, 1.0,   0.0, 0.0, 1.0, 1.0
+        ]
         
         var vertexBuffer: GLuint = 0
         glGenBuffers(1, &vertexBuffer)
         glBindBuffer(GLenum(GL_ARRAY_BUFFER), vertexBuffer)
-        glBufferData(GLenum(GL_ARRAY_BUFFER), MemoryLayout.size(ofValue: vertices), vertices, GLenum(GL_STATIC_DRAW))
+        glBufferData(GLenum(GL_ARRAY_BUFFER), MemoryLayout<GLfloat>.size * 24, vertexs, GLenum(GL_STATIC_DRAW))
+        print("GLfloat size: ", MemoryLayout<GLfloat>.size)
     }
     
     func checkFrameBuffer(_ error: NSErrorPointer) -> Bool {
@@ -159,6 +166,9 @@ class GLView: UIView {
         glAttachShader(program, fragmentShader)
         
         try! link(program: program)
+        
+        glUseProgram(program)
+        print("attach ok")
     }
     
     func link(program: GLuint) throws {
