@@ -48,10 +48,15 @@ class GLView: UIView {
     }
     
     func render() {
-        glClearColor(0, 0, 0, 1)  // 设置画笔颜色
+        glClearColor(0, 1, 1, 1)  // 设置画笔颜色
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT))  // 清空viewport
         
-        glViewport(0, 0, GLsizei(self.frame.size.width), GLsizei(self.frame.size.height))
+        var backingWidth:GLint = 0
+        var backingHeight:GLint = 0
+        glGetRenderbufferParameteriv(GLenum(GL_RENDERBUFFER), GLenum(GL_RENDERBUFFER_WIDTH), &backingWidth)
+        glGetRenderbufferParameteriv(GLenum(GL_RENDERBUFFER), GLenum(GL_RENDERBUFFER_HEIGHT), &backingHeight)
+        
+        glViewport(0, 0, backingWidth, backingHeight)
         
         let position = glViewAttributes[0]
         let colors = glViewAttributes[1]
@@ -63,7 +68,7 @@ class GLView: UIView {
         glVertexAttribPointer(GLuint(colors), GLint(4), GLenum(GL_FLOAT), GLboolean(GL_FALSE), GLsizei(MemoryLayout<GLfloat>.size*8), UnsafeRawPointer(bitPattern: MemoryLayout<GLfloat>.size*4))
                               
         glEnable(GLenum(GL_POINT_SIZE));
-        glDrawArrays(GLenum(GL_LINE_LOOP), 0, 3)
+        glDrawArrays(GLenum(GL_TRIANGLES), 0, 3)
         
         context.presentRenderbuffer(Int(GL_RENDERBUFFER))
     }
@@ -86,15 +91,11 @@ class GLView: UIView {
     }
     
     func setupVertexBuffer() {
-//        let vertexs:[GLfloat]  = [
-//            0.0, 1.0, 0.0, 1.0,    1.0, 0.0, 0.0, 1.0,
-//            -1.0, -1.0, 0.0, 1.0,    0.0, 1.0, 0.0, 1.0,
-//            1.0, -1.0, 0.0, 1.0,   0.0, 0.0, 1.0, 1.0
-//        ]
-        
-        let vertexs = [CustomVertex(position: [-1.0, 1.0, 0, 1], color: [1, 0, 0, 1]),
-                        CustomVertex(position: [-1.0, -1.0, 0, 1], color: [0, 1, 0, 1]),
-                        CustomVertex(position: [1.0, -1.0, 0, 1], color: [0, 0, 1, 1])]
+        let vertexs:[GLfloat]  = [
+            0.0, 1.0, 0.0, 1.0,    1.0, 0.0, 0.0, 1.0,
+            -1.0, -1.0, 0.0, 1.0,    0.0, 1.0, 0.0, 1.0,
+            1.0, -1.0, 0.0, 1.0,   0.0, 0.0, 1.0, 1.0
+        ]
         
         var vertexBuffer: GLuint = 0
         glGenBuffers(1, &vertexBuffer)
