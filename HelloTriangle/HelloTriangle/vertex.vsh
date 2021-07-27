@@ -7,4 +7,5 @@ varying vec4 colorVarying;
 void main(void) {
     colorVarying = color;
     gl_Position = position;
+    gl_PointSize = 8.0;
 }
