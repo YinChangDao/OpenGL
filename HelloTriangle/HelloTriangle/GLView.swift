@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import OpenGLES
 
 struct CustomVertex {
     var position: [Float]
@@ -27,6 +28,7 @@ class GLView: UIView {
     }()
     var frameBuffer: GLuint = 0
     var renderBuffer: GLuint = 1
+    var texture: GLuint = 0
     
     var glViewAttributes = [Int32]()
     
@@ -44,6 +46,8 @@ class GLView: UIView {
         setupRenderBuffer()
         setupFrameBuffer()
         setupVertexBuffer()
+        let turple = decodeJPG()
+        texture(rgbData: turple.0, width: turple.1, height: turple.2)
         attachShader()
     }
     
@@ -58,14 +62,16 @@ class GLView: UIView {
         
         glViewport(0, 0, backingWidth, backingHeight)
         
+        glBindTexture(GLenum(GL_TEXTURE_2D), texture);
+        
         let position = glViewAttributes[0]
         let colors = glViewAttributes[1]
 //        let inputByteSize = Int(self.frame.size.width * self.frame.size.height * 4)
 //        let data = UnsafeMutablePointer<UInt8>.allocate(capacity:inputByteSize)
         
-        glVertexAttribPointer(GLuint(position), GLint(4), GLenum(GL_FLOAT), GLboolean(GL_FALSE), GLsizei(MemoryLayout<GLfloat>.size*8), UnsafeRawPointer(bitPattern:0))
+        glVertexAttribPointer(GLuint(position), GLint(4), GLenum(GL_FLOAT), GLboolean(GL_FALSE), GLsizei(MemoryLayout<GLfloat>.size*6), UnsafeRawPointer(bitPattern:0))
         
-        glVertexAttribPointer(GLuint(colors), GLint(4), GLenum(GL_FLOAT), GLboolean(GL_FALSE), GLsizei(MemoryLayout<GLfloat>.size*8), UnsafeRawPointer(bitPattern: MemoryLayout<GLfloat>.size*4))
+        glVertexAttribPointer(GLuint(colors), GLint(2), GLenum(GL_FLOAT), GLboolean(GL_FALSE), GLsizei(MemoryLayout<GLfloat>.size*6), UnsafeRawPointer(bitPattern: MemoryLayout<GLfloat>.size*4))
                               
         glEnable(GLenum(GL_POINT_SIZE));
         glDrawArrays(GLenum(GL_TRIANGLES), 0, 3)
@@ -92,15 +98,15 @@ class GLView: UIView {
     
     func setupVertexBuffer() {
         let vertexs:[GLfloat]  = [
-            0.0, 1.0, 0.0, 1.0,    1.0, 0.0, 0.0, 1.0,
-            -1.0, -1.0, 0.0, 1.0,    0.0, 1.0, 0.0, 1.0,
-            1.0, -1.0, 0.0, 1.0,   0.0, 0.0, 1.0, 1.0
+            0.0, 1.0, 0.0, 1.0,    0.5, 0.0,
+            -1.0, -1.0, 0.0, 1.0,  0.3, 1.0,
+            1.0, -1.0, 0.0, 1.0,   0.7, 1.0
         ]
         
         var vertexBuffer: GLuint = 0
         glGenBuffers(1, &vertexBuffer)
         glBindBuffer(GLenum(GL_ARRAY_BUFFER), vertexBuffer)
-        glBufferData(GLenum(GL_ARRAY_BUFFER), MemoryLayout<GLfloat>.size * 24, vertexs, GLenum(GL_STATIC_DRAW))
+        glBufferData(GLenum(GL_ARRAY_BUFFER), MemoryLayout<GLfloat>.size * 18, vertexs, GLenum(GL_STATIC_DRAW))
         print("GLfloat size: ", MemoryLayout<GLfloat>.size)
     }
     
@@ -196,7 +202,7 @@ class GLView: UIView {
         }
         
         glViewAttributes.append(glGetAttribLocation(program, "position"))
-        glViewAttributes.append(glGetAttribLocation(program, "color"))
+        glViewAttributes.append(glGetAttribLocation(program, "aTexCoord"))
         
         glEnableVertexAttribArray(GLuint(glViewAttributes[0]))
         glEnableVertexAttribArray(GLuint(glViewAttributes[1]))
@@ -205,6 +211,59 @@ class GLView: UIView {
     override func didMoveToWindow() {
         super.didMoveToWindow()
         render()
+    }
+    
+    func texture(rgbData: UnsafeMutablePointer<UInt32>, width: Int, height: Int) {
+        glGenTextures(1, &texture);
+        glBindTexture(GLenum(GL_TEXTURE_2D), texture);
+        // 为当前绑定的纹理对象设置环绕、过滤方式
+        
+        glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_WRAP_S), GL_REPEAT);
+        glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_WRAP_T), GL_REPEAT);
+        glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_MIN_FILTER), GL_LINEAR);
+        glTexParameteri(GLenum(GL_TEXTURE_2D), GLenum(GL_TEXTURE_MAG_FILTER), GL_LINEAR);
+        // 加载并生成纹理
+        glTexImage2D(GLenum(GL_TEXTURE_2D), 0, GLint(GL_RGBA), GLsizei(width), GLsizei(height), 0, GLenum(GL_RGBA), GLenum(GL_UNSIGNED_BYTE), rgbData);
+        
+        free(rgbData)
+    }
+    
+    func loadRGBFile() -> (UnsafeMutablePointer<UInt32>, Int, Int) {
+        let filePath = Bundle.main.path(forResource: "1920x1200", ofType: "rgb24")
+        
+        do {
+            var data = try Data(contentsOf: URL(fileURLWithPath: filePath!))
+            let p: UnsafeMutablePointer<UInt32> = data.withUnsafeMutableBytes { (pointer: UnsafeMutablePointer) -> UnsafeMutablePointer<UInt32> in
+                pointer
+            }
+            
+            return (p, 1920, 1200)
+        } catch let error {
+            print(error)
+            return (UnsafeMutablePointer.allocate(capacity: 0), 0, 0)
+        }
+    }
+    
+    
+    func decodeJPG() -> (UnsafeMutablePointer<UInt32>, Int, Int) {
+        let inputCGImage = UIImage(named: "onepiece.jpg")!.cgImage!
+        let alphaInfo = inputCGImage.alphaInfo
+        let width = inputCGImage.width
+        let height = inputCGImage.height
+
+        let bytesPerPixel = 4
+        let bytesPerRow = bytesPerPixel * width
+        let bitsPerComponent = 8
+        
+        let pixels = UnsafeMutablePointer<UInt32>.allocate(capacity: height * width * MemoryLayout<UInt32>.size)
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+
+        let context = CGContext(data: pixels, width: width, height: height, bitsPerComponent: bitsPerComponent, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: alphaInfo.rawValue)
+
+        context?.draw(inputCGImage, in: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)))
+        
+        return (pixels, width, height)
     }
     
 
