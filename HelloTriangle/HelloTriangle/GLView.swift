@@ -29,6 +29,9 @@ class GLView: UIView {
     var frameBuffer: GLuint = 0
     var renderBuffer: GLuint = 1
     var texture: GLuint = 0
+    var shaderProgram: GLuint = 0
+    var VAO: GLuint = 0
+    var VBO: GLuint = 0
     
     var glViewAttributes = [Int32]()
     
@@ -41,19 +44,47 @@ class GLView: UIView {
         setup()
     }
     
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        render()
+    }
+    
+    deinit {
+        print("\(String(describing: type(of: self))) deinit")
+        
+        glDeleteVertexArrays(1, &VAO)
+        glDeleteVertexArrays(1, &VBO)
+        glDeleteProgram(shaderProgram)
+    }
+    
     func setup() {
         EAGLContext.setCurrent(context)
         setupRenderBuffer()
         setupFrameBuffer()
+        attachShader()
         setupVertexBuffer()
         let turple = decodeJPG()
         texture(rgbData: turple.0, width: turple.1, height: turple.2)
-        attachShader()
     }
     
     func render() {
         glClearColor(0, 1, 1, 1)  // 设置画笔颜色
         glClear(GLbitfield(GL_COLOR_BUFFER_BIT))  // 清空viewport
+
+        // 激活程序对象
+        glUseProgram(shaderProgram)
+        glBindVertexArray(VAO)
+
+//        glEnable(GLenum(GL_POINT_SIZE)); // 设置图元为点，并设置了点的大小之后，需要 glEnable(GL_POINT_SIZE)
+        // 0 表示顶点数组的起始索引，3表示我们需要绘制多少个顶点
+        glDrawArrays(GLenum(GL_TRIANGLES), 0, 3)
+        context.presentRenderbuffer(Int(GL_RENDERBUFFER))
+    }
+    
+    func setupRenderBuffer() {
+        glGenRenderbuffers(1, &renderBuffer) // 1 是个数，生成一个renderBuffer, 生成之后产生一个 ID 赋值给 renderBuffer
+        glBindRenderbuffer(GLenum(GL_RENDERBUFFER), renderBuffer) // 绑定
+        context.renderbufferStorage(Int(GL_RENDERBUFFER), from: eaglLayer)
         
         var backingWidth:GLint = 0
         var backingHeight:GLint = 0
@@ -61,8 +92,58 @@ class GLView: UIView {
         glGetRenderbufferParameteriv(GLenum(GL_RENDERBUFFER), GLenum(GL_RENDERBUFFER_HEIGHT), &backingHeight)
         
         glViewport(0, 0, backingWidth, backingHeight)
+    }
+    
+    func setupFrameBuffer() {
+        if frameBuffer != 0 {
+            glDeleteFramebuffers(1, &frameBuffer)
+            frameBuffer = 0
+        }
         
-        glBindTexture(GLenum(GL_TEXTURE_2D), texture);
+        glGenFramebuffers(1, &frameBuffer)
+        glBindFramebuffer(GLenum(GL_FRAMEBUFFER), frameBuffer)
+        glFramebufferRenderbuffer(GLenum(GL_FRAMEBUFFER), GLenum(GL_COLOR_ATTACHMENT0), GLenum(GL_RENDERBUFFER), renderBuffer) // 将渲染缓冲对象附加到帧缓冲的颜色附件上
+    }
+    
+    func attachShader() {
+        // 着色器程序对象 Shader Program Object
+        shaderProgram = glCreateProgram()
+        
+        let vetexShader = compileShader("vertex.vsh", for: GLenum(GL_VERTEX_SHADER))
+        let fragmentShader = compileShader("fragment.fsh", for: GLenum(GL_FRAGMENT_SHADER))
+        
+        glAttachShader(shaderProgram, vetexShader)
+        glAttachShader(shaderProgram, fragmentShader)
+        
+        // 将编译的着色器链接为一个着色程序对象
+        try! link(program: shaderProgram)
+        
+        glDeleteShader(vetexShader)
+        glDeleteShader(fragmentShader)
+    }
+    
+    func setupVertexBuffer() {
+        // 顶点坐标和纹理坐标
+        let vertexs:[GLfloat]  = [
+            0.0, 1.0, 0.0, 1.0,    0.5, 0.0,
+            -1.0, -1.0, 0.0, 1.0,  0.3, 1.0,
+            1.0, -1.0, 0.0, 1.0,   0.7, 1.0
+        ]
+        
+        // 绑定 VAO
+        glGenVertexArrays(1, &VAO)
+        // bind the VAO first, then bind and set vertex buffer(s), and then configure vertex attributes.
+        glBindVertexArray(VAO)
+        
+        // 使用 glGenBuffers 函数和一个缓冲 ID 生成一个 VBO 对象，vertex buffer object
+        glGenBuffers(1, &VBO)
+        
+        // 顶点缓冲对象的类型 GL_ARRAY_BUFFER
+        glBindBuffer(GLenum(GL_ARRAY_BUFFER), VBO)
+        
+        // glBufferData 将定义的 vertexs 数据复制到顶点缓冲内存中，第四个参数指定了我们希望显卡如何管理给定的数据，GL_STATIC_DRAW 表示数据不会或几乎不会改变，如果缓冲中的数据会被频繁改变，那么使用 GL_DYNAMIC_DRAW 或 GL_STREAM_DRAW, 可以确保显卡把数据放在能够高速写入的内存部分。
+        glBufferData(GLenum(GL_ARRAY_BUFFER), MemoryLayout<GLfloat>.size * 18, vertexs, GLenum(GL_STATIC_DRAW))
+        
         
         let position = glViewAttributes[0]
         let colors = glViewAttributes[1]
@@ -75,48 +156,10 @@ class GLView: UIView {
         // 以顶点属性位置值作为参数，启用顶点属性
         glEnableVertexAttribArray(GLuint(glViewAttributes[0]))
         glEnableVertexAttribArray(GLuint(glViewAttributes[1]))
-                              
-        glEnable(GLenum(GL_POINT_SIZE));
-        // 0 表示顶点数组的起始索引，3表示我们需要绘制多少个顶点
-        glDrawArrays(GLenum(GL_TRIANGLES), 0, 3)
         
-        context.presentRenderbuffer(Int(GL_RENDERBUFFER))
-    }
-    
-    func setupFrameBuffer() {
-        if frameBuffer != 0 {
-            glDeleteFramebuffers(1, &frameBuffer)
-            frameBuffer = 0
-        }
+        glBindBuffer(GLenum(GL_ARRAY_BUFFER), 0)
+        glBindVertexArray(0)
         
-        glGenFramebuffers(1, &frameBuffer)
-        glBindFramebuffer(GLenum(GL_FRAMEBUFFER), frameBuffer)
-        glFramebufferRenderbuffer(GLenum(GL_FRAMEBUFFER), GLenum(GL_COLOR_ATTACHMENT0), GLenum(GL_RENDERBUFFER), renderBuffer) // 将渲染缓冲对象附加到帧缓冲的深度和模板附件上
-    }
-    
-    func setupRenderBuffer() {
-        glGenRenderbuffers(1, &renderBuffer) // 1 是个数，生成一个renderBuffer, 生成之后产生一个 ID 赋值给 renderBuffer
-        glBindRenderbuffer(GLenum(GL_RENDERBUFFER), renderBuffer) // 绑定
-        context.renderbufferStorage(Int(GL_RENDERBUFFER), from: eaglLayer)
-    }
-    
-    func setupVertexBuffer() {
-        // 顶点坐标和纹理坐标
-        let vertexs:[GLfloat]  = [
-            0.0, 1.0, 0.0, 1.0,    0.5, 0.0,
-            -1.0, -1.0, 0.0, 1.0,  0.3, 1.0,
-            1.0, -1.0, 0.0, 1.0,   0.7, 1.0
-        ]
-        
-        // 使用 glGenBuffers 函数和一个缓冲 ID 生成一个 VBO 对象，vertex buffer object
-        var vertexBuffer: GLuint = 0
-        glGenBuffers(1, &vertexBuffer)
-        
-        // 顶点缓冲对象的类型 GL_ARRAY_BUFFER
-        glBindBuffer(GLenum(GL_ARRAY_BUFFER), vertexBuffer)
-        
-        // glBufferData 将定义的 vertexs 数据复制到顶点缓冲内存中，第四个参数指定了我们希望显卡如何管理给定的数据，GL_STATIC_DRAW 表示数据不会或几乎不会改变，如果缓冲中的数据会被频繁改变，那么使用 GL_DYNAMIC_DRAW 或 GL_STREAM_DRAW, 可以确保显卡把数据放在能够高速写入的内存部分。
-        glBufferData(GLenum(GL_ARRAY_BUFFER), MemoryLayout<GLfloat>.size * 18, vertexs, GLenum(GL_STATIC_DRAW))
         print("GLfloat size: ", MemoryLayout<GLfloat>.size)
     }
     
@@ -181,27 +224,6 @@ class GLView: UIView {
         return shaderHandle
     }
     
-    func attachShader() {
-        // 着色器程序对象 Shader Program Object
-        let program = glCreateProgram()
-        
-        let vetexShader = compileShader("vertex.vsh", for: GLenum(GL_VERTEX_SHADER))
-        let fragmentShader = compileShader("fragment.fsh", for: GLenum(GL_FRAGMENT_SHADER))
-        
-        glAttachShader(program, vetexShader)
-        glAttachShader(program, fragmentShader)
-        
-        // 将编译的着色器链接为一个着色程序对象
-        try! link(program: program)
-        
-        // 激活程序对象
-        glUseProgram(program)
-        print("attach ok")
-        
-        glDeleteShader(vetexShader)
-        glDeleteShader(fragmentShader)
-    }
-    
     func link(program: GLuint) throws {
         
         // 链接的作用是把每个着色器的输出链接到下一个着色器的输入
@@ -231,11 +253,6 @@ class GLView: UIView {
         
     }
     
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        render()
-    }
-    
     func texture(rgbData: UnsafeMutablePointer<UInt32>, width: Int, height: Int) {
         glGenTextures(1, &texture);
         glBindTexture(GLenum(GL_TEXTURE_2D), texture);
@@ -250,24 +267,7 @@ class GLView: UIView {
         
         free(rgbData)
     }
-    
-    func loadRGBFile() -> (UnsafeMutablePointer<UInt32>, Int, Int) {
-        let filePath = Bundle.main.path(forResource: "1920x1200", ofType: "rgb24")
-        
-        do {
-            var data = try Data(contentsOf: URL(fileURLWithPath: filePath!))
-            let p: UnsafeMutablePointer<UInt32> = data.withUnsafeMutableBytes { (pointer: UnsafeMutablePointer) -> UnsafeMutablePointer<UInt32> in
-                pointer
-            }
-            
-            return (p, 1920, 1200)
-        } catch let error {
-            print(error)
-            return (UnsafeMutablePointer.allocate(capacity: 0), 0, 0)
-        }
-    }
-    
-    
+
     func decodeJPG() -> (UnsafeMutablePointer<UInt32>, Int, Int) {
         let inputCGImage = UIImage(named: "onepiece.jpg")!.cgImage!
         let alphaInfo = inputCGImage.alphaInfo
@@ -289,5 +289,20 @@ class GLView: UIView {
         return (pixels, width, height)
     }
     
+    func loadRGBFile() -> (UnsafeMutablePointer<UInt32>, Int, Int) {
+        let filePath = Bundle.main.path(forResource: "1920x1200", ofType: "rgb24")
+        
+        do {
+            var data = try Data(contentsOf: URL(fileURLWithPath: filePath!))
+            let p: UnsafeMutablePointer<UInt32> = data.withUnsafeMutableBytes { (pointer: UnsafeMutablePointer) -> UnsafeMutablePointer<UInt32> in
+                pointer
+            }
+            
+            return (p, 1920, 1200)
+        } catch let error {
+            print(error)
+            return (UnsafeMutablePointer.allocate(capacity: 0), 0, 0)
+        }
+    }
 
 }
