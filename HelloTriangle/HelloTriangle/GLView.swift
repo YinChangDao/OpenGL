@@ -32,6 +32,7 @@ class GLView: UIView {
     var shaderProgram: GLuint = 0
     var VAO: GLuint = 0
     var VBO: GLuint = 0
+    var EBO: GLuint = 0
     
     var glViewAttributes = [Int32]()
     
@@ -74,10 +75,16 @@ class GLView: UIView {
         // 激活程序对象
         glUseProgram(shaderProgram)
         glBindVertexArray(VAO)
-
-//        glEnable(GLenum(GL_POINT_SIZE)); // 设置图元为点，并设置了点的大小之后，需要 glEnable(GL_POINT_SIZE)
-        // 0 表示顶点数组的起始索引，3表示我们需要绘制多少个顶点
-        glDrawArrays(GLenum(GL_TRIANGLES), 0, 3)
+//
+////        glEnable(GLenum(GL_POINT_SIZE)); // 设置图元为点，并设置了点的大小之后，需要 glEnable(GL_POINT_SIZE)
+//        // 0 表示顶点数组的起始索引，3表示我们需要绘制多少个顶点
+        
+        // 当不使用 EBO 时使用 glDrawArrays
+//        glDrawArrays(GLenum(GL_TRIANGLES), 0, 6)
+        
+        glBindBuffer(GLenum(GL_ELEMENT_ARRAY_BUFFER), EBO)
+        glDrawElements(GLenum(GL_TRIANGLES), 6, GLenum(GL_UNSIGNED_INT), nil)
+        
         context.presentRenderbuffer(Int(GL_RENDERBUFFER))
     }
     
@@ -125,9 +132,15 @@ class GLView: UIView {
     func setupVertexBuffer() {
         // 顶点坐标和纹理坐标
         let vertexs:[GLfloat]  = [
-            0.0, 1.0, 0.0, 1.0,    0.5, 0.0,
-            -1.0, -1.0, 0.0, 1.0,  0.3, 1.0,
-            1.0, -1.0, 0.0, 1.0,   0.7, 1.0
+            1.0, 0.5, 0.0, 1.0,    1.0, 0.0,
+            1.0, -0.5, 0.0, 1.0,  1.0, 1.0,
+            -1.0, -0.5, 0.0, 1.0,   0.0, 1.0,
+            -1.0, 0.5, 0.0, 1.0,    0.0, 0.0
+        ]
+        
+        let indices:[GLuint] = [
+            0, 1, 3,
+            1, 2, 3
         ]
         
         // 绑定 VAO
@@ -141,8 +154,13 @@ class GLView: UIView {
         // 顶点缓冲对象的类型 GL_ARRAY_BUFFER
         glBindBuffer(GLenum(GL_ARRAY_BUFFER), VBO)
         
+        glGenBuffers(1, &EBO)
+        glBindBuffer(GLenum(GL_ELEMENT_ARRAY_BUFFER), EBO)
+        
         // glBufferData 将定义的 vertexs 数据复制到顶点缓冲内存中，第四个参数指定了我们希望显卡如何管理给定的数据，GL_STATIC_DRAW 表示数据不会或几乎不会改变，如果缓冲中的数据会被频繁改变，那么使用 GL_DYNAMIC_DRAW 或 GL_STREAM_DRAW, 可以确保显卡把数据放在能够高速写入的内存部分。
-        glBufferData(GLenum(GL_ARRAY_BUFFER), MemoryLayout<GLfloat>.size * 18, vertexs, GLenum(GL_STATIC_DRAW))
+        glBufferData(GLenum(GL_ARRAY_BUFFER), MemoryLayout<GLfloat>.size * 24, vertexs, GLenum(GL_STATIC_DRAW))
+        
+        glBufferData(GLenum(GL_ELEMENT_ARRAY_BUFFER), MemoryLayout<GLuint>.size * 6, indices, GLenum(GL_STATIC_DRAW))
         
         
         let position = glViewAttributes[0]
