@@ -13,7 +13,7 @@ struct CustomVertex {
     var color: [Float]
 }
 
-struct ShaderCompileError:Error {
+struct ShaderCompileError: Error {
     let compileLog:String
 }
 
@@ -66,14 +66,18 @@ class GLView: UIView {
         
         let position = glViewAttributes[0]
         let colors = glViewAttributes[1]
-//        let inputByteSize = Int(self.frame.size.width * self.frame.size.height * 4)
-//        let data = UnsafeMutablePointer<UInt8>.allocate(capacity:inputByteSize)
         
+        // 告诉OpenGL如何解析顶点数据，也就是告诉OpenGL如何把顶点数据链接到顶点着色器的顶点属性上
         glVertexAttribPointer(GLuint(position), GLint(4), GLenum(GL_FLOAT), GLboolean(GL_FALSE), GLsizei(MemoryLayout<GLfloat>.size*6), UnsafeRawPointer(bitPattern:0))
         
         glVertexAttribPointer(GLuint(colors), GLint(2), GLenum(GL_FLOAT), GLboolean(GL_FALSE), GLsizei(MemoryLayout<GLfloat>.size*6), UnsafeRawPointer(bitPattern: MemoryLayout<GLfloat>.size*4))
+        
+        // 以顶点属性位置值作为参数，启用顶点属性
+        glEnableVertexAttribArray(GLuint(glViewAttributes[0]))
+        glEnableVertexAttribArray(GLuint(glViewAttributes[1]))
                               
         glEnable(GLenum(GL_POINT_SIZE));
+        // 0 表示顶点数组的起始索引，3表示我们需要绘制多少个顶点
         glDrawArrays(GLenum(GL_TRIANGLES), 0, 3)
         
         context.presentRenderbuffer(Int(GL_RENDERBUFFER))
@@ -97,15 +101,21 @@ class GLView: UIView {
     }
     
     func setupVertexBuffer() {
+        // 顶点坐标和纹理坐标
         let vertexs:[GLfloat]  = [
             0.0, 1.0, 0.0, 1.0,    0.5, 0.0,
             -1.0, -1.0, 0.0, 1.0,  0.3, 1.0,
             1.0, -1.0, 0.0, 1.0,   0.7, 1.0
         ]
         
+        // 使用 glGenBuffers 函数和一个缓冲 ID 生成一个 VBO 对象，vertex buffer object
         var vertexBuffer: GLuint = 0
         glGenBuffers(1, &vertexBuffer)
+        
+        // 顶点缓冲对象的类型 GL_ARRAY_BUFFER
         glBindBuffer(GLenum(GL_ARRAY_BUFFER), vertexBuffer)
+        
+        // glBufferData 将定义的 vertexs 数据复制到顶点缓冲内存中，第四个参数指定了我们希望显卡如何管理给定的数据，GL_STATIC_DRAW 表示数据不会或几乎不会改变，如果缓冲中的数据会被频繁改变，那么使用 GL_DYNAMIC_DRAW 或 GL_STREAM_DRAW, 可以确保显卡把数据放在能够高速写入的内存部分。
         glBufferData(GLenum(GL_ARRAY_BUFFER), MemoryLayout<GLfloat>.size * 18, vertexs, GLenum(GL_STATIC_DRAW))
         print("GLfloat size: ", MemoryLayout<GLfloat>.size)
     }
@@ -134,6 +144,7 @@ class GLView: UIView {
     }
     
     func compileShader(_ shaderName: String, for type: GLenum) -> GLuint {
+        // 创建着色器对象，用 ID 引用
         let shaderHandle: GLuint = glCreateShader(type)
         do {
             if let shaderPath = Bundle.main.path(forResource: shaderName, ofType: nil) {
@@ -143,9 +154,11 @@ class GLView: UIView {
                 var tempString:UnsafePointer<GLchar>? = shaderUTF8GLChar
                 var shaderStringLength = GLint(shaderString.count)
                 
+                // 把着色器附加到着色器对象上，并编译
                 glShaderSource(shaderHandle, 1, &tempString, &shaderStringLength)
                 glCompileShader(shaderHandle)
                 
+                // 查看编译是否成功
                 var compileStatus:GLint = 1
                 glGetShaderiv(shaderHandle, GLenum(GL_COMPILE_STATUS), &compileStatus)
                 if (compileStatus != 1) {
@@ -169,6 +182,7 @@ class GLView: UIView {
     }
     
     func attachShader() {
+        // 着色器程序对象 Shader Program Object
         let program = glCreateProgram()
         
         let vetexShader = compileShader("vertex.vsh", for: GLenum(GL_VERTEX_SHADER))
@@ -177,13 +191,20 @@ class GLView: UIView {
         glAttachShader(program, vetexShader)
         glAttachShader(program, fragmentShader)
         
+        // 将编译的着色器链接为一个着色程序对象
         try! link(program: program)
         
+        // 激活程序对象
         glUseProgram(program)
         print("attach ok")
+        
+        glDeleteShader(vetexShader)
+        glDeleteShader(fragmentShader)
     }
     
     func link(program: GLuint) throws {
+        
+        // 链接的作用是把每个着色器的输出链接到下一个着色器的输入
         glLinkProgram(program)
         
         var linkStatus:GLint = 0
@@ -201,11 +222,13 @@ class GLView: UIView {
             throw ShaderCompileError(compileLog: "Link error")
         }
         
+        
+        // 链接顶点属性
+        // 顶点着色器允许我们指定任何以顶点属性为形式的输入，我们必须手动指定输入数据的哪一个部分对应顶点着色器的哪一个顶点属性。
+        // 所以，我们必须在渲染前指定 OpenGL 该如何解释顶点数据。
         glViewAttributes.append(glGetAttribLocation(program, "position"))
         glViewAttributes.append(glGetAttribLocation(program, "aTexCoord"))
         
-        glEnableVertexAttribArray(GLuint(glViewAttributes[0]))
-        glEnableVertexAttribArray(GLuint(glViewAttributes[1]))
     }
     
     override func didMoveToWindow() {
